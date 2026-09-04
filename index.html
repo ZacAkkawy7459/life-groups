@@ -1,0 +1,795 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Life Groups</title>
+<meta name="description" content="A private, per-device companion for Life Group sessions. Nothing you type leaves this laptop." />
+<meta name="theme-color" content="#FBF8F3" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,18..72,400;0,18..72,500;0,18..72,600;1,18..72,400;1,18..72,500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A2540'/%3E%3Cpath d='M16 24s-7-4.5-7-9.5A3.8 3.8 0 0 1 16 12a3.8 3.8 0 0 1 7 2.5C23 19.5 16 24 16 24z' fill='%23FFC72C'/%3E%3C/svg%3E" />
+
+<!-- ============ Gate: group → welcome/role → session ============ -->
+<div class="gate" id="gate" hidden>
+  <div class="gate-inner">
+    <!-- Step 0 — choose group -->
+    <div class="gate-step" id="gate-group">
+      <div class="kicker">Life Groups</div>
+      <h1>Which group are you in?</h1>
+      <div class="gate-sessions" id="gate-groups"></div>
+      <p class="privacy">Nothing you type here leaves this laptop.</p>
+    </div>
+    <!-- Step 1 — welcome / role -->
+    <div class="gate-step" id="gate-role" hidden>
+      <div class="kicker" id="gate-role-kicker">Life Groups</div>
+      <h1 id="gate-welcome">Welcome</h1>
+      <p class="gate-q" id="gate-q">Are you leading tonight, or joining in?</p>
+      <div class="choices" id="gate-role-choices"></div>
+      <p class="gate-note" id="gate-note" hidden></p>
+      <p class="privacy">Nothing you type here leaves this laptop.</p>
+      <button class="gate-back" id="gate-role-back" type="button">← Back to groups</button>
+    </div>
+    <!-- Step 2 — choose session -->
+    <div class="gate-step" id="gate-pick" hidden>
+      <div class="kicker" id="gate-pick-kicker">Life Groups</div>
+      <h1>What session are you entering?</h1>
+      <p class="gate-q" id="gate-role-echo"></p>
+      <div class="gate-sessions" id="gate-sessions"></div>
+      <button class="gate-back" id="gate-back" type="button">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ App ============ -->
+<div class="app" id="app" hidden>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="title" id="brand-title">Life Groups</span>
+        <span class="session-tag" id="session-tag"></span>
+      </div>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="Session sections"></nav>
+    </div>
+  </header>
+  <main class="main" id="main">
+    <section class="panel" data-tab="start" role="tabpanel"></section>
+    <section class="panel" data-tab="scripture" role="tabpanel"></section>
+    <section class="panel" data-tab="message" role="tabpanel"></section>
+    <section class="panel" data-tab="questions" role="tabpanel"></section>
+    <section class="panel" data-tab="commitment" role="tabpanel"></section>
+    <section class="panel" data-tab="share" role="tabpanel"></section>
+    <section class="panel" data-tab="close" role="tabpanel"></section>
+  </main>
+  <footer class="appfoot">
+    <div class="appfoot-inner">
+      <div>Nothing you type here leaves this laptop. Everything is saved only in this browser.</div>
+      <div class="foot-controls" id="foot-controls"></div>
+      <div class="attribution" id="attribution"></div>
+    </div>
+  </footer>
+</div>
+
+<div class="hl-pop" id="hl-pop" hidden>
+  <button data-act="hl">Highlight</button>
+  <button data-act="rm" class="rm">Remove</button>
+</div>
+<div id="print-root" class="print-root"></div>
+
+<script src="groups.js"></script>
+<script src="streams/marriage.js"></script>
+<script src="streams/premarital.js"></script>
+<script src="streams/parents-young.js"></script>
+<script src="streams/parents-teens.js"></script>
+<script src="streams/blended.js"></script>
+<script src="streams/carers.js"></script>
+<script src="streams/money.js"></script>
+<script src="streams/grief.js"></script>
+<script>
+(function () {
+  "use strict";
+  var LG = window.LG, GROUPS = LG.groups, STREAMS = LG.streams;
+  var ATTRIB = LG.attribution;
+
+  // ---------- storage ----------
+  var K = {
+    sess: function (g, n) { return "lg.v1." + g + ".session." + n; },
+    meta: function (g) { return "lg.v1." + g + ".meta"; },
+    timer: function (g, n) { return "lg.v1." + g + ".timer." + n; },
+    root: "lg.v1."
+  };
+  function readJSON(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function writeJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  function groupById(id) { for (var i = 0; i < GROUPS.length; i++) if (GROUPS[i].id === id) return GROUPS[i]; return null; }
+  function sessionsOf(g) { return (STREAMS[g.id] || {}).sessions || []; }
+  function passagesOf(g) { return (STREAMS[g.id] || {}).passages || {}; }
+
+  var state = { group: null, stream: null, n: 1, tab: "start", data: null, tabs: [], pendingRole: null, _returnTime: "" };
+
+  function defaultSession(g, n) {
+    var s = sessionsOf(g)[n - 1] || { questions: [] };
+    return {
+      role: null, name: "", date: "",
+      highlights: {}, scriptureNotes: {},
+      answers: (s.questions || []).map(function () { return { text: "", share: false, agree: "" }; }),
+      commitment: { what: "", howOften: "", howWeKnow: "", share: g.shareOptionalAlways ? false : true },
+      carry: "", action: "",
+      othersCommitments: (g.attendees && g.attendees.length ? g.attendees : ["", "", ""]).map(function (c) { return { who: c, what: "" }; }),
+      partnerText: "", comparisons: {},
+      lastMonthOutcome: "", notes: "", qIndex: 0
+    };
+  }
+  function loadSession(g, n) {
+    var d = defaultSession(g, n), saved = readJSON(K.sess(g.id, n), null);
+    if (!saved) return d;
+    for (var key in d) if (!(key in saved)) saved[key] = d[key];
+    if (!saved.answers || saved.answers.length !== d.answers.length) saved.answers = d.answers;
+    if (!saved.commitment) saved.commitment = d.commitment;
+    if (!saved.othersCommitments) saved.othersCommitments = d.othersCommitments;
+    if (!saved.highlights) saved.highlights = {};
+    if (!saved.scriptureNotes) saved.scriptureNotes = {};
+    if (!saved.comparisons) saved.comparisons = {};
+    return saved;
+  }
+
+  var saveTimer = null;
+  function persist() { if (state.group) writeJSON(K.sess(state.group.id, state.n), state.data); }
+  function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(persist, 300); }
+
+  // ---------- helpers ----------
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function md(s) { return esc(s).replace(/\*([^*]+)\*/g, "<em>$1</em>"); } // minimal italics
+  function q(sel, root) { return (root || document).querySelector(sel); }
+  function panelEl(tab) { return q('.panel[data-tab="' + tab + '"]'); }
+  function G() { return state.group; }
+  function sess() { return sessionsOf(state.group)[state.n - 1]; }
+  function P() { return passagesOf(state.group); }
+  function isLeader() { return state.data.role === "leader" || state.data.role === "mentoring"; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function isDone(n) { var d = readJSON(K.sess(state.group.id, n), null); return !!(d && ((d.commitment && d.commitment.what && d.commitment.what.trim()) || (d.carry && d.carry.trim()) || (d.action && d.action.trim()))); }
+  function roleWord() {
+    var g = G();
+    if (g.gateVariant === "threeway") { for (var i = 0; i < g.gateRoles.length; i++) if (g.gateRoles[i].id === state.data.role) return g.gateRoles[i].label.toLowerCase(); }
+    return isLeader() ? "leading" : "joining in";
+  }
+
+  function tabsFor(g) {
+    var t = [{ id: "start", label: "Start" }, { id: "scripture", label: "Scripture" },
+             { id: "message", label: "Message" }, { id: "questions", label: "Questions" }];
+    if (g.commitmentModel !== "none")
+      t.push({ id: "commitment", label: g.commitmentModel === "carry" ? "Carry" : g.commitmentModel === "action" ? "Action" : "Commitment" });
+    t.push({ id: "share", label: g.shareModel === "compare" ? "Compare" : "Share" });
+    t.push({ id: "close", label: "Close" });
+    return t;
+  }
+  function tabIndex(id) { for (var i = 0; i < state.tabs.length; i++) if (state.tabs[i].id === id) return i; return -1; }
+
+  // ---------- scripture rendering (unchanged engine) ----------
+  function mergeRanges(list) {
+    var r = (list || []).slice().filter(function (x) { return x && x.end > x.start; }).sort(function (a, b) { return a.start - b.start; });
+    var out = [];
+    for (var i = 0; i < r.length; i++) { var cur = { start: r[i].start, end: r[i].end }; while (i + 1 < r.length && r[i + 1].start <= cur.end) { cur.end = Math.max(cur.end, r[++i].end); } out.push(cur); }
+    return out;
+  }
+  function subtractRange(list, a, b) {
+    var out = []; mergeRanges(list).forEach(function (r) {
+      if (r.end <= a || r.start >= b) { out.push(r); return; }
+      if (r.start < a) out.push({ start: r.start, end: a });
+      if (r.end > b) out.push({ start: b, end: r.end });
+    });
+    return out;
+  }
+  function coveringRange(list, off) { var m = mergeRanges(list); for (var i = 0; i < m.length; i++) if (m[i].start <= off && off < m[i].end) return m[i]; return null; }
+  function scriptureInner(p, hls) {
+    var plain = p.plain, len = plain.length, H = mergeRanges(hls), vStart = {};
+    p.verses.forEach(function (v) { vStart[v.start] = v.vn; });
+    var bounds = {}; bounds[0] = 1; bounds[len] = 1;
+    p.verses.forEach(function (v) { bounds[v.start] = 1; });
+    H.forEach(function (h) { bounds[h.start] = 1; bounds[h.end] = 1; });
+    for (var i = 0; i < len; i++) if (plain[i] === "\n") { bounds[i] = 1; bounds[i + 1] = 1; }
+    var pts = Object.keys(bounds).map(Number).sort(function (a, b) { return a - b; });
+    function inHL(a) { for (var k = 0; k < H.length; k++) if (H[k].start <= a && a < H[k].end) return true; return false; }
+    var html = "";
+    for (var j = 0; j < pts.length - 1; j++) {
+      var a = pts[j], b = pts[j + 1]; if (b <= a) continue;
+      if (vStart[a] != null) html += '<sup class="vn' + (a === 0 ? ' first' : '') + '" data-o="' + a + '">' + vStart[a] + "</sup>";
+      var seg = plain.slice(a, b);
+      if (seg === "\n") { html += '<br data-o="' + a + '" />'; continue; }
+      var tag = inHL(a) ? "mark" : "span", cls = inHL(a) ? "hl" : "tx";
+      html += "<" + tag + ' class="' + cls + '" data-o="' + a + '">' + esc(seg) + "</" + tag + ">";
+    }
+    return html;
+  }
+
+  // ---------- tabs ----------
+  function buildTabs() {
+    state.tabs = tabsFor(G());
+    var t = q("#tabs"); t.innerHTML = "";
+    state.tabs.forEach(function (tab, i) {
+      var b = document.createElement("button");
+      b.className = "tab"; b.type = "button"; b.setAttribute("role", "tab"); b.dataset.tab = tab.id;
+      b.innerHTML = '<span class="num">' + (i + 1) + "</span>" + esc(tab.label);
+      b.addEventListener("click", function () { switchTab(tab.id); });
+      t.appendChild(b);
+    });
+  }
+  function switchTab(id) {
+    hidePop();
+    state.tab = id;
+    document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-selected", b.dataset.tab === id ? "true" : "false"); });
+    document.querySelectorAll(".panel").forEach(function (pn) { pn.classList.toggle("active", pn.dataset.tab === id); });
+    renderActive();
+    q("#main").scrollTop = 0; window.scrollTo(0, 0);
+    manageTimerLoop();
+  }
+  function renderActive() { (RENDER[state.tab] || function () {})(); }
+  function navFooter(nextId, nextLabel) {
+    if (!nextId) return "";
+    return '<div class="panel-nav"><span class="spacer"></span><button class="primary next" data-next="' + nextId + '">' + esc(nextLabel) + " →</button></div>";
+  }
+  function nextTabNav(fromId) {
+    var i = tabIndex(fromId); if (i < 0 || i >= state.tabs.length - 1) return "";
+    var nx = state.tabs[i + 1]; return navFooter(nx.id, "Next: " + nx.label);
+  }
+
+  // ---------- shared blocks ----------
+  function rulesBlock() {
+    var g = G(); if (!g.sessionRules || !g.sessionRules.length) return "";
+    return '<div class="rules-card measure"><div class="lk">Before we start — every session</div><ul>' +
+      g.sessionRules.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("") + "</ul></div>";
+  }
+  function standingBlock(leaderOnly) {
+    var g = G(); if (!g.standingNote) return "";
+    if (leaderOnly && !isLeader()) return "";
+    return '<div class="standing-note measure"><div class="lk">Support</div><p>' + esc(g.standingNote) + "</p></div>";
+  }
+
+  // ---------- panels ----------
+  var RENDER = {};
+
+  RENDER.start = function () {
+    var el = panelEl("start"), s = sess(), d = state.data, g = G();
+    var chips = sessionsOf(g).map(function (x) {
+      var cur = x.n === state.n;
+      return '<button class="session-chip" data-goto="' + x.n + '" aria-current="' + (cur ? "true" : "false") + '">' +
+        '<span class="n">Session ' + x.n + (isDone(x.n) ? ' · <span class="done">done</span>' : "") + "</span>" +
+        '<span class="t">' + esc(x.title) + "</span></button>";
+    }).join("");
+
+    var lastMonth = "";
+    if (state.n > 1 && g.day14Model !== "none") {
+      var prev = readJSON(K.sess(g.id, state.n - 1), null);
+      var prevC = prev && prev.commitment ? prev.commitment : null;
+      var prevCarry = prev && prev.carry ? prev.carry : "";
+      var prevText = g.commitmentModel === "carry" ? prevCarry : (prevC && prevC.what);
+      lastMonth =
+        '<div class="card"><h3>Last month — how did it go?</h3>' +
+        (prevText ?
+          '<p class="hint" style="margin-bottom:.7rem">Session ' + (state.n - 1) + " · " + esc(sessionsOf(g)[state.n - 2].title) +
+          '</p><p style="font-family:var(--serif);font-size:1.1rem">“' + esc(prevText) + "”</p>" : '<p class="hint">Nothing saved from last session on this device.</p>') +
+        '<label style="margin-top:1rem" for="lmo">How did it actually land?</label>' +
+        '<textarea id="lmo" data-field="lastMonthOutcome" rows="3">' + esc(d.lastMonthOutcome) + "</textarea></div>";
+    }
+    var runSheet = "";
+    if (isLeader() && g.runSheet) {
+      runSheet = '<div class="card"><h3>Run sheet — ' + g.sessionMinutes + ' minutes <span class="leader-only-flag" style="vertical-align:middle">Leader</span></h3>' +
+        '<table class="run-sheet"><tbody>' +
+        g.runSheet.map(function (r) { return '<tr><td class="t">' + esc(r.time) + "</td><td>" + esc(r.block) + "</td></tr>"; }).join("") + "</tbody></table></div>";
+    }
+
+    el.innerHTML =
+      '<div class="eyebrow">Start</div>' +
+      '<h2 class="tab-title">Choose Tonight’s Session</h2>' +
+      (g.startTabNote ? '<p class="start-note measure">' + esc(g.startTabNote) + "</p>" : "") +
+      '<div class="session-picker">' + chips + "</div>" +
+      '<div class="measure">' +
+      rulesBlock() +
+      '<div class="eyebrow" style="color:var(--ink-soft)">Session ' + s.n + "</div>" +
+      '<h2 class="tab-title" style="margin-bottom:.6rem">' + esc(s.title) + "</h2>" +
+      '<p class="premise">' + md(s.premise) + "</p>" +
+      '<div class="card"><h3>How the night runs</h3><p class="runs">' + esc(g.howItRuns) + "</p></div>" +
+      runSheet +
+      '<div class="card stack">' +
+      '<div><label for="nm">Your name (or your names)</label>' +
+      '<input id="nm" type="text" data-field="name" value="' + esc(d.name) + '" placeholder="optional" /></div>' +
+      '<div><label for="dt">Date <span class="hint">optional</span></label>' +
+      '<input id="dt" type="date" data-field="date" value="' + esc(d.date) + '" /></div>' +
+      "</div>" + lastMonth +
+      standingBlock(false) + "</div>" +
+      nextTabNav("start");
+
+    el.querySelectorAll("[data-goto]").forEach(function (b) { b.addEventListener("click", function () { gotoSession(+b.dataset.goto); }); });
+  };
+
+  RENDER.scripture = function () {
+    var el = panelEl("scripture"), s = sess(), d = state.data, PS = P();
+    var body = s.scripture.map(function (pid) {
+      var p = PS[pid];
+      if (!p) return '<div class="passage"><em>Missing passage: ' + esc(pid) + "</em></div>";
+      var note = d.scriptureNotes[pid] || "";
+      return '<div class="passage" data-pid="' + pid + '">' +
+        '<div class="ref-label">' + esc(p.label) + "</div>" +
+        '<div class="scripture-text" data-pid="' + pid + '">' + scriptureInner(p, d.highlights[pid]) + "</div>" +
+        '<div class="attrib-inline">NLT</div>' +
+        '<div class="notes-block"><label for="nt-' + pid + '">What stood out to you? <span class="hint">Optional. Nobody sees this but you.</span></label>' +
+        '<textarea id="nt-' + pid + '" data-note="' + pid + '" rows="2">' + esc(note) + "</textarea></div></div>";
+    }).join("");
+    el.innerHTML = '<div class="eyebrow">Scripture</div><h2 class="tab-title">Read it Slowly</h2>' + rulesBlock() +
+      '<p class="hint measure" style="margin-bottom:1.6rem">Select any words to highlight them. Highlights stay on this device, month to month, and print into your PDF.</p>' +
+      body + nextTabNav("scripture");
+    wireScripture(el);
+  };
+
+  RENDER.message = function () {
+    var el = panelEl("message"), s = sess(), g = G();
+    var landing = '<div class="landing"><div class="lk">The landing</div><p>' + md(s.landing) + "</p></div>";
+    var beatsHTML = (s.beats || []).map(function (b, i) { return '<div class="beat"><div class="bn">' + (i + 1) + '</div><p>' + md(b) + "</p></div>"; }).join("");
+    var html = '<div class="eyebrow">Message</div><h2 class="tab-title">' + esc(s.title) + "</h2>" + rulesBlock() +
+      '<p class="premise measure">' + md(s.premise) + "</p>";
+    if (isLeader()) {
+      html += '<div class="measure">' + beatsHTML + landing;
+      if (s.leaderNote) html += '<div class="leader-note"><div class="lk">Leader note</div><p style="margin:0">' + md(s.leaderNote) + "</p></div>";
+      if (s.mentorNote) html += '<div class="leader-note"><div class="lk">Mentor note</div><p style="margin:0">' + md(s.mentorNote) + "</p></div>";
+      if (g.gateNote) html += '<div class="leader-note"><div class="lk">Say this aloud</div><p style="margin:0">' + esc(g.gateNote) + "</p></div>";
+      var rt = state._returnTime || "";
+      var script = "We're all going to hang up now and come back at " + (rt ? formatTime(rt) : "[return time]") + ". " + g.countdownMinutes +
+        " minutes. There's a timer on the " + (g.shareModel === "compare" ? "Questions" : "Questions") + " tab — start it when you're ready. Answer as much or as little as you want to; none of it is going anywhere unless you choose to share it.";
+      html += '<div class="script-box"><div class="lk">Before ' + esc((g.dropOffLabel || "personal time").toLowerCase()) + ' — read this aloud</div>' +
+        '<p style="margin:.2rem 0 .8rem" id="ct-script">' + esc(script) + "</p>" +
+        '<label for="rt">Return time (everyone rejoins) <span class="hint">also post this into the group chat</span></label>' +
+        '<input id="rt" type="time" value="' + esc(rt) + '" style="max-width:12rem" /></div>';
+      if (s.n === 1 && g.session1Rhythm) html += '<div class="leader-note" style="margin-top:1.2rem"><div class="lk">Announce the rhythm tonight</div>' +
+        '<p style="margin:0 0 .6rem">' + esc(g.session1Rhythm) + "</p>" + (g.leaderTip ? "<p class='hint' style='margin:0'>" + esc(g.leaderTip) + "</p>" : "") + "</div>";
+      if (g.watchForNote) html += '<div class="leader-note warn"><div class="lk">Watch for</div><p style="margin:0">' + esc(g.watchForNote) + "</p></div>";
+      html += standingBlock(true);
+      if (g.pauseRule) html += '<div class="pause-rule"><div class="lk">If any of these come up, pause the course</div><p style="margin:0">' + esc(g.pauseRule) + "</p></div>";
+      html += "</div>";
+    } else {
+      html += landing +
+        '<details class="notes-disclosure measure" style="margin-top:1.4rem"><summary>Tonight’s notes</summary><div style="padding:.4rem 0 1rem">' + beatsHTML + "</div></details>";
+    }
+    html += nextTabNav("message");
+    el.innerHTML = html;
+    var rtInput = q("#rt", el);
+    if (rtInput) rtInput.addEventListener("input", function () {
+      state._returnTime = rtInput.value;
+      var scr = q("#ct-script", el);
+      scr.textContent = "We're all going to hang up now and come back at " + (rtInput.value ? formatTime(rtInput.value) : "[return time]") + ". " + g.countdownMinutes +
+        " minutes. There's a timer on the Questions tab — start it when you're ready. Answer as much or as little as you want to; none of it is going anywhere unless you choose to share it.";
+    });
+  };
+
+  RENDER.questions = function () {
+    var el = panelEl("questions"), s = sess(), d = state.data, g = G();
+    var qi = clamp(d.qIndex || 0, 0, s.questions.length - 1); d.qIndex = qi;
+    var a = d.answers[qi];
+    var dots = s.questions.map(function (_, i) { return '<span class="dot' + (i === qi ? " on" : (d.answers[i].text.trim() ? " filled" : "")) + '"></span>'; }).join("");
+    var last = qi === s.questions.length - 1;
+    var compare = g.shareModel === "compare";
+    var toggle = compare ?
+      '<div class="agree-dial"><span>Before you compare:</span>' +
+        ["aligned", "close", "not aligned"].map(function (v) {
+          return '<label class="agree-opt"><input type="radio" name="agree" value="' + v + '"' + (a.agree === v ? " checked" : "") + " /> we're " + v + "</label>";
+        }).join("") + "</div>" :
+      '<label class="share-toggle"><input type="checkbox" id="ashare"' + (a.share ? " checked" : "") + " /> Include this in what I share</label>";
+
+    el.innerHTML = '<div class="eyebrow">Questions</div>' + timerBarHTML() + rulesBlock() +
+      '<div class="q-screen measure"><div class="q-count">Question ' + (qi + 1) + " of " + s.questions.length + "</div>" +
+      '<p class="q-text">' + md(s.questions[qi]) + "</p>" +
+      '<textarea id="ans" rows="6" placeholder="As much or as little as you want.">' + esc(a.text) + "</textarea>" + toggle +
+      '<div class="q-dots">' + dots + "</div>" +
+      '<div class="panel-nav" style="margin-top:1rem"><button class="ghost" id="qprev"' + (qi === 0 ? " disabled" : "") + '>← Back</button><span class="spacer"></span>' +
+      '<button class="primary" id="qnext">' + (last ? "Next: " + state.tabs[tabIndex("questions") + 1].label + " →" : "Next question →") + "</button></div></div>";
+
+    var ans = q("#ans", el);
+    ans.addEventListener("input", function () { a.text = ans.value; scheduleSave(); });
+    if (compare) el.querySelectorAll('input[name="agree"]').forEach(function (r) { r.addEventListener("change", function () { a.agree = r.value; scheduleSave(); }); });
+    else q("#ashare", el).addEventListener("change", function (e) { a.share = e.target.checked; scheduleSave(); });
+    q("#qprev", el).addEventListener("click", function () { if (qi > 0) { d.qIndex = qi - 1; persist(); RENDER.questions(); } });
+    q("#qnext", el).addEventListener("click", function () { if (last) { switchTab(state.tabs[tabIndex("questions") + 1].id); } else { d.qIndex = qi + 1; persist(); RENDER.questions(); } });
+    wireTimer(el);
+  };
+
+  RENDER.commitment = function () {
+    var el = panelEl("commitment"), s = sess(), g = G(), d = state.data;
+    if (g.commitmentModel === "carry" || g.commitmentModel === "action") {
+      var isCarry = g.commitmentModel === "carry";
+      var val = isCarry ? d.carry : d.action;
+      var prompt = isCarry ? (s.carry || "") : (s.action || "");
+      el.innerHTML = '<div class="commit-stage"><div class="eyebrow">' + esc(g.commitmentLabel) + "</div>" +
+        '<h2 class="tab-title">' + esc(g.commitmentLabel) + "</h2>" +
+        (prompt ? '<p class="commit-lead">' + md(prompt) + "</p>" : "") +
+        (g.commitmentIntro ? '<p class="hint" style="margin-bottom:1rem;color:#6b5410">' + esc(g.commitmentIntro) + "</p>" : "") +
+        '<div class="commit-field"><textarea id="c-single" class="big" rows="3" placeholder="…">' + esc(val) + "</textarea></div>" +
+        '<div class="commit-sign"><span>' + esc(d.name || "") + "</span><span>" + esc(prettyDate(d.date) || todayPretty()) + "</span></div></div>" + nextTabNav("commitment");
+      q("#c-single", el).addEventListener("input", function (e) { if (isCarry) d.carry = e.target.value; else d.action = e.target.value; scheduleSave(); });
+      return;
+    }
+    var c = d.commitment;
+    el.innerHTML = '<div class="commit-stage"><div class="eyebrow">Commitment</div><h2 class="tab-title">Our Commitment This Month</h2>' +
+      '<p class="commit-lead">' + md(s.commitment || "") + "</p>" +
+      (g.commitmentIntro ? '<p class="hint" style="margin-bottom:1rem;color:#6b5410">' + esc(g.commitmentIntro) + "</p>" : "") +
+      '<div class="commit-field"><label for="c-what">One concrete habit — not a sentiment</label><textarea id="c-what" class="big" rows="2" data-c="what">' + esc(c.what) + "</textarea></div>" +
+      '<div class="commit-row"><div class="commit-field"><label for="c-often">How often</label><input id="c-often" type="text" data-c="howOften" value="' + esc(c.howOften) + '" /></div>' +
+      '<div class="commit-field"><label for="c-know">How we’ll know it happened</label><input id="c-know" type="text" data-c="howWeKnow" value="' + esc(c.howWeKnow) + '" /></div></div>' +
+      '<div class="commit-sign"><span>' + esc(d.name || "") + "</span><span>" + esc(prettyDate(d.date) || todayPretty()) + "</span></div>" +
+      '<label class="commit-share"><input type="checkbox" id="c-share"' + (c.share ? " checked" : "") + " /> Include our commitment in what we share</label></div>" + nextTabNav("commitment");
+    el.querySelectorAll("[data-c]").forEach(function (inp) { inp.addEventListener("input", function () { c[inp.dataset.c] = inp.value; scheduleSave(); }); });
+    q("#c-share", el).addEventListener("change", function (e) { c.share = e.target.checked; scheduleSave(); });
+  };
+
+  RENDER.share = function () {
+    var g = G();
+    if (g.shareModel === "compare") return renderCompare();
+    var el = panelEl("share"), d = state.data;
+    var rows = d.othersCommitments.map(function (r, i) {
+      return '<div class="others-row" data-i="' + i + '"><input type="text" data-who="' + i + '" value="' + esc(r.who) + '" placeholder="Name" aria-label="Name" />' +
+        '<input type="text" data-what="' + i + '" value="' + esc(r.what) + '" placeholder="Their commitment" aria-label="Their commitment" />' +
+        '<button class="rm-row" data-rm="' + i + '" title="Remove row" aria-label="Remove row">✕</button></div>';
+    }).join("");
+    el.innerHTML = '<div class="eyebrow">Share</div><h2 class="tab-title">Into the Group Chat</h2>' + rulesBlock() +
+      '<div class="card measure"><h3>Your message</h3>' +
+      (g.shareStandingLine ? '<p class="standing-line">' + esc(g.shareStandingLine) + "</p>" : "") +
+      '<p class="hint" style="margin-bottom:.7rem">' + (g.shareOptionalAlways ? "Share only what you want to — or nothing at all." : "Built from what you ticked, plus your commitment.") + " Copy it, then paste into the chat.</p>" +
+      '<textarea class="draft-box" id="draft" rows="10" readonly aria-label="Group chat message">' + esc(buildShareText()) + "</textarea>" +
+      '<div class="copy-row"><button class="primary" id="copy">Copy for group chat</button><span class="copied" id="copied">Copied.</span></div></div>' +
+      '<div class="card measure"><h3>Everyone else’s ' + (g.commitmentModel === "carry" ? "reflections" : "commitments") + '</h3>' +
+      '<p class="hint" style="margin-bottom:.9rem">Jot these down as they’re read out. They go into your PDF.</p>' + rows +
+      '<button id="add-row" style="margin-top:.5rem">+ Add someone</button></div>' + nextTabNav("share");
+    q("#copy", el).addEventListener("click", function () { doCopy(q("#draft", el), q("#copied", el)); });
+    el.querySelectorAll("[data-who]").forEach(function (inp) { inp.addEventListener("input", function () { d.othersCommitments[+inp.dataset.who].who = inp.value; scheduleSave(); }); });
+    el.querySelectorAll("[data-what]").forEach(function (inp) { inp.addEventListener("input", function () { d.othersCommitments[+inp.dataset.what].what = inp.value; scheduleSave(); }); });
+    el.querySelectorAll("[data-rm]").forEach(function (b) { b.addEventListener("click", function () { d.othersCommitments.splice(+b.dataset.rm, 1); persist(); RENDER.share(); }); });
+    q("#add-row", el).addEventListener("click", function () { d.othersCommitments.push({ who: "", what: "" }); persist(); RENDER.share(); });
+  };
+
+  function renderCompare() {
+    var el = panelEl("share"), s = sess(), d = state.data;
+    var mine = d.answers.map(function (a, i) { return "Q" + (i + 1) + " [" + (a.agree || "—") + "] " + (a.text || "").replace(/\n/g, " "); }).join("\n");
+    var partner = parsePartner(d.partnerText);
+    var pairs = s.questions.map(function (qq, i) {
+      var pa = partner[i] || {};
+      var cmp = d.comparisons[i] || "";
+      return '<div class="cmp-pair"><div class="cmp-q">' + (i + 1) + ". " + md(qq) + "</div>" +
+        '<div class="cmp-cols"><div class="cmp-col"><div class="cmp-h">You <span class="agree-chip">' + esc(d.answers[i].agree || "—") + '</span></div><div class="cmp-a">' + (esc(d.answers[i].text) || "—") + "</div></div>" +
+        '<div class="cmp-col"><div class="cmp-h">Partner <span class="agree-chip">' + esc(pa.agree || "—") + '</span></div><div class="cmp-a">' + (esc(pa.text) || (d.partnerText ? "—" : "<span class='hint'>paste below</span>")) + "</div></div></div>" +
+        '<label class="cmp-note-l">What we noticed about the difference</label><textarea class="cmp-note" data-cmp="' + i + '" rows="2">' + esc(cmp) + "</textarea></div>";
+    }).join("");
+    el.innerHTML = '<div class="eyebrow">Compare</div><h2 class="tab-title">Answer Privately, Then Compare</h2>' +
+      '<p class="hint measure" style="margin-bottom:1rem">Each of you answers on your own laptop. Then one of you copies their answers, sends them across, and the other pastes them here to see both side by side.</p>' +
+      '<div class="card measure"><h3>1 · Share your answers</h3><p class="hint" style="margin-bottom:.6rem">Copy these and send them to your partner.</p>' +
+      '<textarea class="draft-box" id="mine" rows="6" readonly>' + esc(mine) + "</textarea>" +
+      '<div class="copy-row"><button class="primary" id="copymine">Copy my answers</button><span class="copied" id="copied">Copied.</span></div></div>' +
+      '<div class="card measure"><h3>2 · Paste your partner’s</h3><textarea id="ptext" rows="5" placeholder="Paste what they sent you here.">' + esc(d.partnerText) + "</textarea></div>" +
+      '<div class="measure"><h3 style="font-family:var(--serif)">3 · Talk about the gaps</h3>' + pairs + "</div>" + nextTabNav("share");
+    q("#copymine", el).addEventListener("click", function () { doCopy(q("#mine", el), q("#copied", el)); });
+    q("#ptext", el).addEventListener("input", function (e) { d.partnerText = e.target.value; scheduleSave(); });
+    q("#ptext", el).addEventListener("change", function () { RENDER.share(); });
+    el.querySelectorAll("[data-cmp]").forEach(function (t) { t.addEventListener("input", function () { d.comparisons[+t.dataset.cmp] = t.value; scheduleSave(); }); });
+  }
+  function parsePartner(text) {
+    var out = {};
+    (text || "").split(/\n(?=Q\d+\s*\[)/).forEach(function (line) {
+      var m = line.match(/^Q(\d+)\s*\[([^\]]*)\]\s*([\s\S]*)$/);
+      if (m) out[+m[1] - 1] = { agree: m[2].trim(), text: m[3].trim() };
+    });
+    return out;
+  }
+
+  RENDER.close = function () {
+    var el = panelEl("close"), s = sess(), g = G();
+    var html = '<div class="eyebrow">Close</div><h2 class="tab-title">Before Everyone Drops Off</h2>' + rulesBlock() +
+      '<p class="closing-words">' + md(s.closing || "") + "</p>";
+    if (g.day14Model !== "none") {
+      var q14 = g.day14Model === "fixedLine" ? g.day14FixedLine : (s.day14 || "");
+      html += '<div class="card measure"><h3>In two weeks</h3><p>You’ll get a note in the group chat:</p>' +
+        '<p style="font-family:var(--serif);font-size:1.15rem;font-style:italic">“' + esc(q14) + '”</p></div>';
+      if (isLeader()) html += '<div class="card measure"><h3>Day-14 message <span class="leader-only-flag" style="vertical-align:middle">Leader</span></h3>' +
+        '<p class="hint" style="margin-bottom:.7rem">Send this into the group chat two weeks from tonight. Whoever sends it goes first.</p>' +
+        '<textarea class="draft-box" id="d14" rows="5">' + esc("Two-week check-in — Session " + s.n + ", " + s.title + ".\n\n" + q14 + "\n\nOne honest line each. I’ll go first.") + "</textarea>" +
+        '<div class="copy-row"><button class="primary" id="copy14">Copy this message</button><span class="copied" id="copied14">Copied.</span></div></div>';
+    }
+    if (isLeader()) html += standingBlock(true);
+    html += '<div class="card measure"><h3>Take it with you</h3><p class="hint" style="margin-bottom:.5rem">Everything you typed goes into the PDF — the toggles only shape the group-chat message.</p>' +
+      '<div class="export-row"><button class="primary" id="export">Export PDF</button>' +
+      (s.n === g.sessionCount ? '<button id="exportYear">' + esc(g.yearExportLabel || "Export the year") + "</button>" : "") + "</div></div>";
+    el.innerHTML = html;
+    if (isLeader() && q("#copy14", el)) q("#copy14", el).addEventListener("click", function () { doCopy(q("#d14", el), q("#copied14", el)); });
+    q("#export", el).addEventListener("click", function () { exportPDF(); });
+    var ey = q("#exportYear", el); if (ey) ey.addEventListener("click", function () { exportYear(); });
+  };
+
+  // ---------- share text ----------
+  function buildShareText() {
+    var d = state.data, s = sess(), g = G();
+    var head = (d.name ? d.name + " — " : "") + "Session " + s.n + ", " + s.title;
+    var lines = [head, ""];
+    var shared = d.answers.filter(function (a) { return a.share && a.text.trim(); }).map(function (a) { return a.text.trim(); });
+    lines.push("What we’re sharing:");
+    if (shared.length) shared.forEach(function (t) { lines.push(t); });
+    else lines.push("(nothing ticked yet)");
+    if (g.commitmentModel === "carry" && d.carry.trim()) { lines.push("", "Carrying this fortnight:", d.carry.trim()); }
+    else if (g.commitmentModel === "commitment" && d.commitment.share && (d.commitment.what.trim() || d.commitment.howWeKnow.trim())) {
+      lines.push("", "Our commitment this month:");
+      if (d.commitment.what.trim()) lines.push(d.commitment.what.trim() + (d.commitment.howOften.trim() ? " — " + d.commitment.howOften.trim() : ""));
+      if (d.commitment.howWeKnow.trim()) lines.push("We’ll know it happened because " + d.commitment.howWeKnow.trim() + ".");
+    }
+    return lines.join("\n");
+  }
+  function doCopy(area, msg) {
+    var text = area.value;
+    function ok() { msg.classList.add("show"); setTimeout(function () { msg.classList.remove("show"); }, 1800); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, fb); else fb();
+    function fb() { area.removeAttribute("readonly"); area.focus(); area.select(); try { document.execCommand("copy"); ok(); } catch (e) {} area.setAttribute("readonly", "readonly"); }
+  }
+
+  // ---------- timer ----------
+  var timerLoop = null;
+  function timerState() { return readJSON(K.timer(state.group.id, state.n), null); }
+  function cdSecs() { return G().countdownMinutes * 60; }
+  function timerBarHTML() {
+    var g = G();
+    return '<div class="timer-bar" id="timer"><div class="timer-read" id="t-read">' + fmtRemain(remain()) + "</div>" +
+      '<div class="timer-label">' + esc(g.dropOffLabel || "Personal time") + " — " + g.countdownMinutes + " minutes. Start it when you’re ready. Nobody’s left to call time once everyone’s off the call.</div>" +
+      '<button id="t-btn">' + (timerState() && remain() > 0 ? "Reset" : "Start") + "</button></div>";
+  }
+  function remain() { var t = timerState(); if (!t || !t.endAt) return cdSecs(); return Math.round((t.endAt - Date.now()) / 1000); }
+  function fmtRemain(sec) { if (sec < 0) sec = 0; var m = Math.floor(sec / 60), s = sec % 60; return m + ":" + (s < 10 ? "0" : "") + s; }
+  function wireTimer(el) {
+    q("#t-btn", el).addEventListener("click", function () {
+      var t = timerState();
+      if (t && remain() > 0) localStorage.removeItem(K.timer(state.group.id, state.n));
+      else writeJSON(K.timer(state.group.id, state.n), { endAt: Date.now() + cdSecs() * 1000 });
+      RENDER.questions();
+    });
+    paintTimer();
+  }
+  function paintTimer() {
+    var bar = q("#timer"); if (!bar) return;
+    var sec = remain(), active = timerState() && timerState().endAt;
+    q("#t-read").textContent = fmtRemain(sec);
+    bar.classList.toggle("amber", active && sec <= 300 && sec > 60);
+    bar.classList.toggle("red", active && sec <= 60 && sec > 0);
+    bar.classList.toggle("done", active && sec <= 0);
+    if (active && sec <= 0) q("#t-btn").textContent = "Start";
+  }
+  function manageTimerLoop() { clearInterval(timerLoop); timerLoop = null; if (state.tab === "questions") timerLoop = setInterval(paintTimer, 1000); }
+  function formatTime(v) { if (!v) return v; var p = v.split(":"), h = +p[0]; var ap = h >= 12 ? "pm" : "am", hh = h % 12; if (hh === 0) hh = 12; return hh + ":" + p[1] + " " + ap; }
+  function prettyDate(v) { if (!v) return ""; var d = new Date(v + "T00:00:00"); return isNaN(d) ? v : d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }); }
+  function todayPretty() { return new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }); }
+
+  // ---------- scripture highlighting ----------
+  var pending = null;
+  function wireScripture(root) {
+    root.querySelectorAll(".scripture-text").forEach(function (box) {
+      box.addEventListener("mouseup", function () { setTimeout(function () { onSelect(box); }, 0); });
+      box.addEventListener("click", function (e) { var m = e.target.closest && e.target.closest("mark.hl"); if (m && window.getSelection().isCollapsed) onMarkClick(box, m); });
+    });
+    root.querySelectorAll("[data-note]").forEach(function (ta) { ta.addEventListener("input", function () { state.data.scriptureNotes[ta.dataset.note] = ta.value; scheduleSave(); }); });
+  }
+  function resolvePoint(node, offset) {
+    var el = node.nodeType === 3 ? node.parentElement : node, holder = el && el.closest ? el.closest("[data-o]") : null;
+    if (holder) { var base = +holder.dataset.o; return node.nodeType === 3 ? base + offset : base + (offset > 0 ? (holder.textContent || "").length : 0); }
+    if (node.nodeType === 1 && node.childNodes.length) { var child = node.childNodes[clamp(offset, 0, node.childNodes.length - 1)]; var h2 = child && child.dataset && child.dataset.o != null ? child : (child && child.parentElement ? child.parentElement.closest("[data-o]") : null); if (h2) return +h2.dataset.o; }
+    return null;
+  }
+  function onSelect(box) {
+    var sel = window.getSelection(); if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    var r = sel.getRangeAt(0); if (!box.contains(r.startContainer) || !box.contains(r.endContainer)) return;
+    var pid = box.dataset.pid, plain = P()[pid].plain, len = plain.length;
+    var a = resolvePoint(r.startContainer, r.startOffset), b = resolvePoint(r.endContainer, r.endOffset);
+    if (a == null || b == null) return; if (a > b) { var t = a; a = b; b = t; }
+    a = clamp(a, 0, len); b = clamp(b, 0, len);
+    while (a < b && /\s/.test(plain[a])) a++; while (b > a && /\s/.test(plain[b - 1])) b--;
+    if (b - a < 1) return;
+    pending = { pid: pid, start: a, end: b };
+    var overlaps = subtractRange(state.data.highlights[pid], a, b).length !== mergeRanges(state.data.highlights[pid]).length || coveringRange(state.data.highlights[pid], a);
+    showPop(r.getBoundingClientRect(), !!overlaps, true);
+  }
+  function onMarkClick(box, mark) { var pid = box.dataset.pid, cov = coveringRange(state.data.highlights[pid], +mark.dataset.o); if (!cov) return; pending = { pid: pid, start: cov.start, end: cov.end }; showPop(mark.getBoundingClientRect(), true, false); }
+  function showPop(rect, showRemove, showAdd) {
+    var pop = q("#hl-pop");
+    pop.querySelector('[data-act="hl"]').style.display = showAdd ? "" : "none";
+    pop.querySelector('[data-act="rm"]').style.display = showRemove ? "" : "none";
+    pop.hidden = false; pop.style.position = "fixed"; pop.style.visibility = "hidden";
+    var pw = pop.offsetWidth, ph = pop.offsetHeight, top = rect.top - ph - 8; if (top < 8) top = rect.bottom + 8;
+    pop.style.top = top + "px"; pop.style.left = clamp(rect.left + rect.width / 2 - pw / 2, 8, window.innerWidth - pw - 8) + "px"; pop.style.visibility = "visible";
+  }
+  function hidePop() { var p = q("#hl-pop"); if (p) p.hidden = true; pending = null; }
+  function commitHL(add) {
+    if (!pending) return; var pid = pending.pid, hs = state.data.highlights;
+    if (add) hs[pid] = mergeRanges((hs[pid] || []).concat([{ start: pending.start, end: pending.end }]));
+    else hs[pid] = subtractRange(hs[pid], pending.start, pending.end);
+    persist(); hidePop(); var sel = window.getSelection(); if (sel) sel.removeAllRanges(); RENDER.scripture();
+  }
+  q("#hl-pop").addEventListener("mousedown", function (e) { e.preventDefault(); });
+  q("#hl-pop").querySelector('[data-act="hl"]').addEventListener("click", function () { commitHL(true); });
+  q("#hl-pop").querySelector('[data-act="rm"]').addEventListener("click", function () { commitHL(false); });
+  document.addEventListener("mousedown", function (e) { var pop = q("#hl-pop"); if (!pop.hidden && !pop.contains(e.target) && !(e.target.closest && e.target.closest(".scripture-text"))) hidePop(); });
+  window.addEventListener("scroll", hidePop, true);
+
+  // ---------- footer ----------
+  function renderFooter() {
+    var g = G(), fc = q("#foot-controls");
+    var switchLabel = g.gateVariant === "threeway" ? "Switch role" : "Switch";
+    fc.innerHTML = '<span>Viewing as <b>' + esc(roleWord()) + "</b></span>" +
+      '<button id="switch-role">' + switchLabel + "</button><span class=\"sep\">·</span>" +
+      '<button id="change-group">Change group</button><span class="sep">·</span>' +
+      '<button id="fresh">Start this session fresh</button><button class="danger" id="clear">Clear everything</button>';
+    q("#attribution").textContent = ATTRIB;
+    q("#switch-role", fc).addEventListener("click", function () {
+      if (g.gateVariant === "threeway") { var ids = g.gateRoles.map(function (r) { return r.id; }); state.data.role = ids[(ids.indexOf(state.data.role) + 1) % ids.length]; }
+      else state.data.role = isLeader() ? "participant" : "leader";
+      persist(); buildTabs(); document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-selected", b.dataset.tab === state.tab ? "true" : "false"); });
+      renderFooter(); renderActive(); updateTag();
+    });
+    q("#change-group", fc).addEventListener("click", function () { persist(); showGate(); });
+    q("#fresh", fc).addEventListener("click", function () {
+      if (confirm("Start this session fresh on this device? Clears only what you typed for this session of this group.")) {
+        var role = state.data.role; localStorage.removeItem(K.timer(g.id, state.n));
+        state.data = defaultSession(g, state.n); state.data.role = role; persist(); renderActive(); updateTag();
+      }
+    });
+    q("#clear", fc).addEventListener("click", function () {
+      if (confirm("Clear everything for every group on this device? This cannot be undone.")) {
+        Object.keys(localStorage).forEach(function (k) { if (k.indexOf(K.root) === 0) localStorage.removeItem(k); });
+        showGate();
+      }
+    });
+  }
+  function updateTag() {
+    q("#session-tag").innerHTML = esc(G().title) + " · Session <b>" + state.n + "</b> · " + esc(sess().title) + ' &nbsp;<span class="role-pill">' + esc(roleWord()) + "</span>";
+  }
+
+  // ---------- gate flow ----------
+  function showGateStep(step) {
+    ["group", "role", "pick"].forEach(function (s) { q("#gate-" + s).hidden = s !== step; });
+  }
+  function showGate() {
+    state.pendingRole = null;
+    q("#app").hidden = true; q("#gate").hidden = false;
+    buildGroupGrid();
+    showGateStep("group");
+  }
+  function buildGroupGrid() {
+    q("#gate-groups").innerHTML = GROUPS.map(function (g) {
+      return '<button class="gate-session-btn" type="button" data-group="' + g.id + '"><span class="t">' + esc(g.title) + '</span><span class="blurb">' + esc(g.blurb) + "</span></button>";
+    }).join("");
+    q("#gate-groups").querySelectorAll("[data-group]").forEach(function (b) { b.addEventListener("click", function () { chooseGroup(b.dataset.group); }); });
+  }
+  function chooseGroup(id) {
+    state.group = groupById(id); state.stream = STREAMS[id];
+    var g = state.group;
+    q("#gate-q").textContent = g.gatePrompt || "Are you leading tonight, or joining in?";
+    var choices = g.gateVariant === "threeway"
+      ? g.gateRoles.map(function (r, i) { return '<button class="' + (i === 0 ? "primary" : "") + '" data-role="' + r.id + '">' + esc(r.label) + "</button>"; }).join("")
+      : '<button class="primary" data-role="leader">I’m leading</button><button data-role="participant">I’m joining in</button>';
+    q("#gate-role-choices").innerHTML = choices;
+    q("#gate-role-choices").querySelectorAll("[data-role]").forEach(function (b) { b.addEventListener("click", function () { chooseRole(b.dataset.role); }); });
+    var note = q("#gate-note");
+    if (g.gateNote || g.standingNote || g.startTabNote) { note.hidden = false; note.textContent = g.gateNote || g.startTabNote || g.standingNote; }
+    else note.hidden = true;
+    showGateStep("role");
+  }
+  function chooseRole(role) {
+    state.pendingRole = role;
+    var g = state.group, label = role;
+    if (g.gateVariant === "threeway") { for (var i = 0; i < g.gateRoles.length; i++) if (g.gateRoles[i].id === role) label = g.gateRoles[i].label; q("#gate-role-echo").textContent = label + " tonight."; }
+    else q("#gate-role-echo").textContent = role === "leader" ? "Leading tonight." : "Joining in tonight.";
+    buildSessionGrid();
+    showGateStep("pick");
+  }
+  function buildSessionGrid() {
+    var g = state.group;
+    q("#gate-sessions").innerHTML = sessionsOf(g).map(function (x) {
+      return '<button class="gate-session-btn" type="button" data-enter="' + x.n + '"><span class="n">Session ' + x.n + '</span><span class="t">' + esc(x.title) + "</span></button>";
+    }).join("");
+    q("#gate-sessions").querySelectorAll("[data-enter]").forEach(function (b) { b.addEventListener("click", function () { enterSession(+b.dataset.enter); }); });
+  }
+  function enterSession(n) {
+    var g = state.group;
+    state.n = n; state.data = loadSession(g, n);
+    state.data.role = state.pendingRole || state.data.role || "participant";
+    state._returnTime = ""; persist();
+    writeJSON(K.meta(g.id), { lastSession: n }); writeJSON("lg.v1.meta", { lastGroup: g.id });
+    enterApp();
+  }
+  function enterApp() {
+    q("#gate").hidden = true; q("#app").hidden = false;
+    q("#brand-title").textContent = "Life Groups";
+    buildTabs(); updateTag(); renderFooter(); switchTab("start");
+  }
+  function gotoSession(n) {
+    if (n === state.n) { switchTab("start"); return; }
+    var inherit = state.data.role; persist();
+    state.n = n; state.data = loadSession(G(), n); state._returnTime = "";
+    if (!state.data.role) state.data.role = inherit || "participant";
+    persist(); writeJSON(K.meta(G().id), { lastSession: n });
+    updateTag(); renderFooter(); switchTab("start");
+  }
+  q("#gate-role-back").addEventListener("click", function () { showGateStep("group"); });
+  q("#gate-back").addEventListener("click", function () { showGateStep("role"); });
+
+  // ---------- global events ----------
+  document.addEventListener("input", function (e) { var f = e.target.dataset && e.target.dataset.field; if (f) { state.data[f] = e.target.value; scheduleSave(); } });
+  document.addEventListener("click", function (e) { var b = e.target.closest && e.target.closest("[data-next]"); if (b) switchTab(b.dataset.next); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    var a = document.activeElement, tn = a && a.tagName;
+    if (tn === "INPUT" || tn === "TEXTAREA" || tn === "SELECT" || (a && a.isContentEditable)) return;
+    if (!q("#gate").hidden) return;
+    var i = tabIndex(state.tab);
+    if (e.key === "ArrowRight" && i < state.tabs.length - 1) switchTab(state.tabs[i + 1].id);
+    if (e.key === "ArrowLeft" && i > 0) switchTab(state.tabs[i - 1].id);
+  });
+  window.addEventListener("beforeunload", persist);
+
+  // ---------- PDF ----------
+  function scripturePrint(g, s, d) {
+    var PS = passagesOf(g);
+    return s.scripture.map(function (pid) {
+      var p = PS[pid]; if (!p) return "";
+      var note = (d.scriptureNotes[pid] || "").trim();
+      return '<div style="margin-bottom:14pt"><div class="ref-label">' + esc(p.label) + ' · NLT</div><div>' + scriptureInner(p, d.highlights[pid]) + "</div>" +
+        (note ? '<div class="p-note">' + esc(note) + "</div>" : "") + "</div>";
+    }).join("");
+  }
+  function buildSessionPrint(n) {
+    var g = G(), s = sessionsOf(g)[n - 1], d = (n === state.n) ? state.data : loadSession(g, n), leader = d.role === "leader" || d.role === "mentoring";
+    var qa = s.questions.map(function (qq, i) { var t = (d.answers[i] && d.answers[i].text || "").trim(); return '<div class="p-qa"><div class="p-q">' + (i + 1) + ". " + esc(qq) + '</div><div class="p-a' + (t ? "" : " empty") + '">' + (t ? esc(t) : "—") + "</div></div>"; }).join("");
+    var others = d.othersCommitments.filter(function (r) { return (r.who && r.who.trim()) || (r.what && r.what.trim()); }).map(function (r) { return "<tr><td><b>" + esc(r.who) + "</b></td><td>" + esc(r.what) + "</td></tr>"; }).join("");
+    var html = '<div class="print-page p-cover"><div class="p-kicker">' + esc(g.title) + " · Session " + s.n + "</div><h1>" + esc(s.title) + "</h1>" +
+      '<div class="p-meta">' + (d.name ? esc(d.name) + "<br/>" : "") + esc(prettyDate(d.date) || "") + '</div><div class="p-meta" style="font-family:var(--serif);font-style:italic;margin-top:1.4rem;font-size:13pt">' + esc(s.premise) + "</div></div>";
+    html += '<div class="print-page"><h2 class="p-h">Scripture</h2><div class="p-scripture">' + scripturePrint(g, s, d) + "</div></div>";
+    html += '<div class="print-page"><h2 class="p-h">The message</h2>' + (s.beats || []).map(function (b) { return '<div class="p-beat">' + esc(b) + "</div>"; }).join("") +
+      '<div class="p-landing">' + esc(s.landing) + "</div></div>";
+    html += '<div class="print-page"><h2 class="p-h">Questions &amp; answers</h2>' + qa + "</div>";
+    if (g.commitmentModel !== "none") {
+      var cLabel = g.commitmentLabel || "Our commitment", cval;
+      if (g.commitmentModel === "carry") cval = '<div class="cval">' + esc(d.carry || "—") + "</div>";
+      else if (g.commitmentModel === "action") cval = '<div class="cval">' + esc(d.action || "—") + "</div>";
+      else cval = '<div class="clabel">This month</div><div class="cval">' + esc(d.commitment.what || "—") + '</div><div class="clabel">How often</div><div class="cval">' + esc(d.commitment.howOften || "—") + '</div><div class="clabel">How we’ll know</div><div class="cval">' + esc(d.commitment.howWeKnow || "—") + "</div>";
+      html += '<div class="print-page"><h2 class="p-h">' + esc(cLabel) + '</h2><div class="p-commit">' + cval + "</div>" +
+        (others ? '<h2 class="p-h" style="margin-top:18pt">Others</h2><table class="p-others"><tbody>' + others + "</tbody></table>" : "") + "</div>";
+    }
+    if (leader && g.runSheet) html += '<div class="print-page"><h2 class="p-h">Run sheet</h2><table class="p-runsheet"><tbody>' +
+      g.runSheet.map(function (r) { return '<tr><td class="t">' + esc(r.time) + "</td><td>" + esc(r.block) + "</td></tr>"; }).join("") + "</tbody></table></div>";
+    if (g.day14Model !== "none") { var q14 = g.day14Model === "fixedLine" ? g.day14FixedLine : (s.day14 || ""); html += '<div class="print-page"><h2 class="p-h">In two weeks</h2><p style="font-family:var(--serif);font-size:13pt">' + esc(q14) + '</p><div class="p-ruled">' + Array(8).join('<div class="line"></div>') + "</div></div>"; }
+    var back = ATTRIB + (g.standingNote ? "\n\n" + g.standingNote : "");
+    html += '<div class="print-page"><div class="p-attrib">' + esc(back).replace(/\n\n/g, "<br/><br/>") + "</div></div>";
+    return html;
+  }
+  function buildYearPrint() {
+    var g = G();
+    var items = sessionsOf(g).map(function (s) {
+      var d = loadSession(g, s.n), next = s.n < g.sessionCount ? loadSession(g, s.n + 1) : null;
+      var outcome = next ? (next.lastMonthOutcome || "").trim() : "";
+      var val = g.commitmentModel === "carry" ? d.carry : g.commitmentModel === "action" ? d.action : (d.commitment.what || "");
+      return '<div class="p-year-item"><div class="yn">Session ' + s.n + '</div><div class="yt">' + esc(s.title) + '</div>' +
+        '<div class="p-a"><b>' + esc(g.commitmentLabel || "Commitment") + ':</b> ' + (esc(val) || "—") + "</div>" +
+        (g.day14Model !== "none" ? '<div class="p-a"><b>How it went:</b> ' + (outcome ? esc(outcome) : "—") + "</div>" : "") + "</div>";
+    }).join("");
+    return '<div class="print-page p-cover"><div class="p-kicker">' + esc(g.title) + '</div><h1>Our ' + (g.sessionCount === 8 ? "course" : "year") + '</h1></div>' +
+      '<div class="print-page"><h2 class="p-h">The ' + (g.sessionCount === 8 ? "course" : "year") + '</h2>' + items + "</div>" +
+      '<div class="print-page"><div class="p-attrib">' + esc(ATTRIB) + "</div></div>";
+  }
+  function printHTML(html) { var root = q("#print-root"); root.innerHTML = html; function after() { root.innerHTML = ""; window.removeEventListener("afterprint", after); } window.addEventListener("afterprint", after); window.print(); }
+  function exportPDF() { persist(); printHTML(buildSessionPrint(state.n)); }
+  function exportYear() { persist(); printHTML(buildYearPrint()); }
+
+  // ---------- boot ----------
+  var m = readJSON("lg.v1.meta", null);
+  if (m && m.lastGroup && groupById(m.lastGroup)) {
+    var g = groupById(m.lastGroup); var gm = readJSON(K.meta(g.id), { lastSession: 1 });
+    var d = loadSession(g, gm.lastSession || 1);
+    if (d.role) { state.group = g; state.stream = STREAMS[g.id]; state.n = gm.lastSession || 1; state.data = d; enterApp(); }
+    else showGate();
+  } else showGate();
+
+  if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) navigator.serviceWorker.register("sw.js").catch(function () {});
+})();
+</script>

@@ -1,0 +1,12 @@
+# Never commit the NLT API key. It is only used at build time by
+# tools/fetch-passages.py and never ships to the browser.
+.env
+*.key
+nlt-key.txt
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+__pycache__/
+*.pyc
