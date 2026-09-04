@@ -12,9 +12,10 @@ config-driven — almost all behaviour differences between groups are data, not 
 
 ## 1. Status
 
-- **Built and tested locally. Not yet deployed** (as of this handoff). Intended target:
-  a **new** public GitHub Pages repo `life-groups`; the standalone marriage app stays
-  live and untouched at `zacakkawy7459.github.io/marriage-life-group`.
+- **Built, tested, and DEPLOYED.** Live at
+  **https://zacakkawy7459.github.io/life-groups/** (public repo
+  `ZacAkkawy7459/life-groups`, GitHub Pages from `main` / root). The standalone marriage
+  app is untouched and still live at `zacakkawy7459.github.io/marriage-life-group`.
 - All **8 streams** load; all **7 tabs** render for every stream; scripture is **baked**
   (170 passages / 461 verses; 0 offset issues). Verified in-browser via DOM-state checks:
   group selector, the two structural variants (grief, premarital), highlighting, PDF,
@@ -184,17 +185,19 @@ chapter numbers and subheads, keeps poetry line breaks, and stores `{ref,label,v
   once and eyeball the selector, the gold Commitment/Carry stage, and the compare grid.
 - **Selector uses plain text buttons** (no per-group glyphs) to stay on-palette; add
   restrained glyphs if wanted.
+- **Psalm superscriptions leak into verse 1.** For Psalms with a title line (e.g. Psalm
+  13 "For the choir director: A psalm of David."), the NLT API returns the superscription
+  and the parser folds it into verse 1's text. It's legitimate scripture, but reads
+  oddly. Fix in `tools/fetch-passages.py` `VerseParser` (skip the superscription element —
+  likely `p.psalm-title` / a `span` before the first `verse_export`), then re-bake the
+  affected streams (mainly grief; also any Psalm elsewhere) and redeploy.
 
-## 9. Deployment (not done yet)
+## 9. Deployment (done)
 
-New public repo `life-groups`, GitHub Pages from `main` / root — same as the marriage
-app. From `life-groups/`:
+Live at **https://zacakkawy7459.github.io/life-groups/** — public repo
+`ZacAkkawy7459/life-groups`, GitHub Pages from `main` / root, Enforce HTTPS on. The
+standalone marriage app is separate and untouched.
 
-```bash
-git remote add origin https://github.com/<user>/life-groups.git
-git push -u origin main
-```
-
-Then Settings → Pages → Deploy from a branch → `main` / root. The umbrella title is
-**"Life Groups"**. Bump `CACHE` in `sw.js` on every subsequent deploy so the
-network-first worker refreshes cleanly.
+To ship changes: commit, `git push` (credentials cached), and **bump `CACHE` in `sw.js`**
+so the network-first worker refreshes cleanly on visitors' next reload. `origin` is
+already set on the local repo.
