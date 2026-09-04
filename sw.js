@@ -2,7 +2,7 @@
  * Makes the site work offline once loaded. A dropped connection mid-session
  * never loses the page. Bump CACHE when you change the app files.
  */
-var CACHE = "lg-v1";
+var CACHE = "lg-v2";
 var CORE = ["./", "./index.html", "./styles.css", "./groups.js",
   "./streams/marriage.js", "./streams/premarital.js", "./streams/parents-young.js",
   "./streams/parents-teens.js", "./streams/blended.js", "./streams/carers.js",

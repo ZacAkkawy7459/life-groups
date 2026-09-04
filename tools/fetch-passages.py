@@ -12,6 +12,7 @@ Usage:
   python tools/fetch-passages.py --key YOUR_KEY                 # bake every stream
   python tools/fetch-passages.py --key YOUR_KEY --stream grief  # one (or a,b,c)
   NLT_KEY=... python tools/fetch-passages.py                    # key via env
+  python tools/fetch-passages.py --ids Psalm                    # re-bake only Psalms (merge)
 
 The marriage stream is NOT in the manifest — it reuses its already-baked data.
 Free non-commercial key from https://api.nlt.to (or --key TEST for anon: 50
@@ -32,7 +33,8 @@ END_MARK = "/* ===== PASSAGES:GENERATED:END"
 class VerseParser(HTMLParser):
     """Clean verse text out of the API HTML. Drops footnotes (span.tn),
     footnote markers (a.a-tn), the printed verse number (span.vn), and any
-    heading (chapter numbers h2.chapter-number, subheads h3.subhead). Inserts a
+    heading (chapter numbers h2.chapter-number, subheads h3.subhead) and the
+    Psalm superscription (p.psa-title, e.g. "For the choir director"). Inserts a
     newline before each poetic line so poetry keeps its shape."""
 
     def __init__(self):
@@ -64,6 +66,7 @@ class VerseParser(HTMLParser):
         skip = (
             (tag == "span" and ("tn" in classes or "vn" in classes))
             or (tag == "a" and "a-tn" in classes)
+            or (tag == "p" and "psa-title" in classes)  # Psalm superscription
             or tag in ("h1", "h2", "h3", "h4", "h5", "h6")
         )
         self.stack.append((tag, skip))
@@ -144,8 +147,29 @@ def inject(path, block):
         f.write(src[:s] + block + src[e:])
 
 
-def bake_stream(sid, entries, key):
-    passages = {}
+def existing_passages(path):
+    with open(path, "r", encoding="utf-8") as f:
+        src = f.read()
+    s = src.find(START_MARK)
+    e = src.find(END_MARK)
+    if s == -1 or e == -1:
+        return {}
+    body = src[s:e]
+    a = body.find("const PASSAGES = ") + len("const PASSAGES = ")
+    b = body.rfind(";")
+    try:
+        return json.loads(body[a:b])
+    except ValueError:
+        return {}
+
+
+def bake_stream(sid, entries, key, only=None):
+    path = os.path.join(ROOT, "streams", sid + ".js")
+    passages = existing_passages(path) if only else {}
+    if only:
+        entries = [e for e in entries if only.search(e["id"]) or only.search(e["ref"])]
+        if not entries:
+            return 0
     for j, ent in enumerate(entries):
         pid, ref, label = ent["id"], ent["ref"], ent["label"]
         for attempt in range(4):
@@ -159,15 +183,18 @@ def bake_stream(sid, entries, key):
                 time.sleep(2.0)
         time.sleep(0.25)
     block = render_block(passages)
-    inject(os.path.join(ROOT, "streams", sid + ".js"), block)
-    return len(passages)
+    inject(path, block)
+    return len(entries)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--key", default=os.environ.get("NLT_KEY", "TEST"))
     ap.add_argument("--stream", default=None, help="comma-separated stream ids")
+    ap.add_argument("--ids", default=None,
+                    help="regex; re-bake only passages whose id or ref matches, merging into the existing block (e.g. --ids Psalm)")
     args = ap.parse_args()
+    only = re.compile(args.ids) if args.ids else None
     manifest = json.load(open(os.path.join(HERE, "passages-manifest.json"), encoding="utf-8"))
     want = set(args.stream.split(",")) if args.stream else None
     total = 0
@@ -175,7 +202,7 @@ def main():
         if want and sid not in want:
             continue
         sys.stderr.write(f"== {sid} ({len(entries)} passages)\n")
-        n = bake_stream(sid, entries, args.key)
+        n = bake_stream(sid, entries, args.key, only)
         total += n
         sys.stderr.write(f"   baked {n} into streams/{sid}.js\n")
     sys.stderr.write(f"\nDone. {total} passages baked.\n")

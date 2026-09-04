@@ -178,35 +178,35 @@
       {
         "vn": 1,
         "start": 0,
-        "end": 106
+        "end": 64
       },
       {
         "vn": 2,
-        "start": 107,
-        "end": 189
+        "start": 65,
+        "end": 147
       },
       {
         "vn": 3,
-        "start": 190,
-        "end": 265
+        "start": 148,
+        "end": 223
       },
       {
         "vn": 4,
-        "start": 266,
-        "end": 325
+        "start": 224,
+        "end": 283
       },
       {
         "vn": 5,
-        "start": 326,
-        "end": 401
+        "start": 284,
+        "end": 359
       },
       {
         "vn": 6,
-        "start": 402,
-        "end": 473
+        "start": 360,
+        "end": 431
       }
     ],
-    "plain": "For the choir director: A psalm of David.\nO Lord, you have examined my heart\nand know everything about me. You know when I sit down or stand up.\nYou know my thoughts even when I’m far away. You see me when I travel\nand when I rest at home.\nYou know everything I do. You know what I am going to say\neven before I say it, Lord. You go before me and follow me.\nYou place your hand of blessing on my head. Such knowledge is too wonderful for me,\ntoo great for me to understand!"
+    "plain": "O Lord, you have examined my heart\nand know everything about me. You know when I sit down or stand up.\nYou know my thoughts even when I’m far away. You see me when I travel\nand when I rest at home.\nYou know everything I do. You know what I am going to say\neven before I say it, Lord. You go before me and follow me.\nYou place your hand of blessing on my head. Such knowledge is too wonderful for me,\ntoo great for me to understand!"
   },
   "carers-s6-isaiah-49-15-16": {
     "ref": "Isaiah 49:15-16",

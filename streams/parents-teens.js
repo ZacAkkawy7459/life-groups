@@ -440,15 +440,15 @@
       {
         "vn": 1,
         "start": 0,
-        "end": 125
+        "end": 83
       },
       {
         "vn": 2,
-        "start": 126,
-        "end": 254
+        "start": 84,
+        "end": 212
       }
     ],
-    "plain": "For the choir director: A psalm of David.\nO Lord, how long will you forget me? Forever?\nHow long will you look the other way? How long must I struggle with anguish in my soul,\nwith sorrow in my heart every day?\nHow long will my enemy have the upper hand?"
+    "plain": "O Lord, how long will you forget me? Forever?\nHow long will you look the other way? How long must I struggle with anguish in my soul,\nwith sorrow in my heart every day?\nHow long will my enemy have the upper hand?"
   },
   "parents-teens-s12-numbers-6-24-26": {
     "ref": "Numbers 6:24-26",

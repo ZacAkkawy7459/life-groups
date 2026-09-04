@@ -13,15 +13,15 @@
       {
         "vn": 1,
         "start": 0,
-        "end": 125
+        "end": 83
       },
       {
         "vn": 2,
-        "start": 126,
-        "end": 254
+        "start": 84,
+        "end": 212
       }
     ],
-    "plain": "For the choir director: A psalm of David.\nO Lord, how long will you forget me? Forever?\nHow long will you look the other way? How long must I struggle with anguish in my soul,\nwith sorrow in my heart every day?\nHow long will my enemy have the upper hand?"
+    "plain": "O Lord, how long will you forget me? Forever?\nHow long will you look the other way? How long must I struggle with anguish in my soul,\nwith sorrow in my heart every day?\nHow long will my enemy have the upper hand?"
   },
   "grief-s2-lamentations-3-19-23": {
     "ref": "Lamentations 3:19-23",
@@ -147,25 +147,25 @@
       {
         "vn": 1,
         "start": 0,
-        "end": 101
+        "end": 57
       },
       {
         "vn": 2,
-        "start": 102,
-        "end": 150
+        "start": 58,
+        "end": 106
       },
       {
         "vn": 3,
-        "start": 151,
-        "end": 223
+        "start": 107,
+        "end": 179
       },
       {
         "vn": 4,
-        "start": 224,
-        "end": 283
+        "start": 180,
+        "end": 239
       }
     ],
-    "plain": "A song for pilgrims ascending to Jerusalem.\nFrom the depths of despair, O Lord,\nI call for your help. Hear my cry, O Lord.\nPay attention to my prayer. Lord, if you kept a record of our sins,\nwho, O Lord, could ever survive? But you offer forgiveness,\nthat we might learn to fear you."
+    "plain": "From the depths of despair, O Lord,\nI call for your help. Hear my cry, O Lord.\nPay attention to my prayer. Lord, if you kept a record of our sins,\nwho, O Lord, could ever survive? But you offer forgiveness,\nthat we might learn to fear you."
   },
   "grief-s6-job-2-11-13": {
     "ref": "Job 2:11-13",
@@ -208,20 +208,20 @@
       {
         "vn": 1,
         "start": 0,
-        "end": 230
+        "end": 77
       },
       {
         "vn": 2,
-        "start": 231,
-        "end": 268
+        "start": 78,
+        "end": 115
       },
       {
         "vn": 18,
-        "start": 269,
-        "end": 349
+        "start": 116,
+        "end": 196
       }
     ],
-    "plain": "For the choir director: A psalm of the descendants of Korah. A song to be sung to the tune “The Suffering of Affliction.” A psalm of Heman the Ezrahite.\nO Lord, God of my salvation,\nI cry out to you by day.\nI come to you at night. Now hear my prayer;\nlisten to my cry. You have taken away my companions and loved ones.\nDarkness is my closest friend."
+    "plain": "O Lord, God of my salvation,\nI cry out to you by day.\nI come to you at night. Now hear my prayer;\nlisten to my cry. You have taken away my companions and loved ones.\nDarkness is my closest friend."
   },
   "grief-s8-psalm-42-4": {
     "ref": "Psalm 42:4",

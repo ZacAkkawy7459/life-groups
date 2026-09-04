@@ -171,26 +171,24 @@ chapter numbers and subheads, keeps poetry line breaks, and stores `{ref,label,v
 
 ## 8. Known gaps / TODO (good next-session work)
 
-- **`whereWasI` (parents-young)** is declared in config but **not yet wired**. Intended:
-  a "Where was I?" control returning to the last-touched question; the countdown already
-  survives tab blur (it's wall-clock `endAt`-driven), so only the jump control is left.
+Done in the September 2026 session (see git log): `whereWasI` wired (parents-young Start
+tab shows a "Where was I?" card jumping back to the last-touched question); premarital
+mentor PDF omits the couple's private answers and prints only agreement dials + "what we
+noticed" notes (all compare-stream PDFs now include those notes); Psalm superscriptions
+stripped (`VerseParser` skips `p.psa-title`; `fetch-passages.py --ids <regex>` re-bakes
+matching passages and merges them into the existing block, so a full re-bake is no longer
+needed for a spot fix).
+
+Still open:
+
 - **Compare copy format is plain-text and brittle** to manual edits (`Q1 [close] text`).
   Fine for copy-paste between partners; consider a more robust encoding if edited by hand.
-- **Premarital mentor PDF** currently prints answers like any stream. The spec wants the
-  mentor export to omit private answers (only agreement dials + shared notes). Not yet
-  differentiated by role in `buildSessionPrint`.
 - **Run sheets** for the 75-min non-marriage streams use a neutral shared table; tune per
   stream if desired.
-- **No visual/pixel QA** was done (automation tab couldn't composite). Open it locally
-  once and eyeball the selector, the gold Commitment/Carry stage, and the compare grid.
+- **Visual/pixel QA** — DOM-state checks pass; eyeball the selector, the gold
+  Commitment/Carry stage, and the compare grid on a real screen once.
 - **Selector uses plain text buttons** (no per-group glyphs) to stay on-palette; add
   restrained glyphs if wanted.
-- **Psalm superscriptions leak into verse 1.** For Psalms with a title line (e.g. Psalm
-  13 "For the choir director: A psalm of David."), the NLT API returns the superscription
-  and the parser folds it into verse 1's text. It's legitimate scripture, but reads
-  oddly. Fix in `tools/fetch-passages.py` `VerseParser` (skip the superscription element —
-  likely `p.psalm-title` / a `span` before the first `verse_export`), then re-bake the
-  affected streams (mainly grief; also any Psalm elsewhere) and redeploy.
 
 ## 9. Deployment (done)
 

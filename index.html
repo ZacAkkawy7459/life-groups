@@ -274,6 +274,16 @@
         '<label style="margin-top:1rem" for="lmo">How did it actually land?</label>' +
         '<textarea id="lmo" data-field="lastMonthOutcome" rows="3">' + esc(d.lastMonthOutcome) + "</textarea></div>";
     }
+    var whereWasI = "";
+    if (g.whereWasI) {
+      var touched = d.answers.map(function (a, i) { return a.text.trim() ? i : -1; }).filter(function (i) { return i >= 0; });
+      var qi = touched.length ? Math.max(d.qIndex || 0, touched[touched.length - 1]) : (d.qIndex || 0);
+      if (touched.length || qi > 0) {
+        whereWasI = '<div class="card where-was-i"><h3>Where was I?</h3>' +
+          '<p class="hint" style="margin-bottom:.7rem">Interrupted? Pick up where you left off. The timer keeps running while you are away.</p>' +
+          '<button class="primary" id="where-was-i" data-qi="' + qi + '">Back to question ' + (qi + 1) + ' of ' + s.questions.length + ' →</button></div>';
+      }
+    }
     var runSheet = "";
     if (isLeader() && g.runSheet) {
       runSheet = '<div class="card"><h3>Run sheet — ' + g.sessionMinutes + ' minutes <span class="leader-only-flag" style="vertical-align:middle">Leader</span></h3>' +
@@ -291,6 +301,7 @@
       '<div class="eyebrow" style="color:var(--ink-soft)">Session ' + s.n + "</div>" +
       '<h2 class="tab-title" style="margin-bottom:.6rem">' + esc(s.title) + "</h2>" +
       '<p class="premise">' + md(s.premise) + "</p>" +
+      whereWasI +
       '<div class="card"><h3>How the night runs</h3><p class="runs">' + esc(g.howItRuns) + "</p></div>" +
       runSheet +
       '<div class="card stack">' +
@@ -303,6 +314,8 @@
       nextTabNav("start");
 
     el.querySelectorAll("[data-goto]").forEach(function (b) { b.addEventListener("click", function () { gotoSession(+b.dataset.goto); }); });
+    var wwi = q("#where-was-i", el);
+    if (wwi) wwi.addEventListener("click", function () { d.qIndex = +wwi.dataset.qi; persist(); switchTab("questions"); });
   };
 
   RENDER.scripture = function () {
@@ -740,7 +753,21 @@
   }
   function buildSessionPrint(n) {
     var g = G(), s = sessionsOf(g)[n - 1], d = (n === state.n) ? state.data : loadSession(g, n), leader = d.role === "leader" || d.role === "mentoring";
-    var qa = s.questions.map(function (qq, i) { var t = (d.answers[i] && d.answers[i].text || "").trim(); return '<div class="p-qa"><div class="p-q">' + (i + 1) + ". " + esc(qq) + '</div><div class="p-a' + (t ? "" : " empty") + '">' + (t ? esc(t) : "—") + "</div></div>"; }).join("");
+    var compare = g.shareModel === "compare", mentor = compare && d.role === "mentoring";
+    var partner = compare ? parsePartner(d.partnerText) : {};
+    var qa = s.questions.map(function (qq, i) {
+      var t = (d.answers[i] && d.answers[i].text || "").trim();
+      var html = '<div class="p-qa"><div class="p-q">' + (i + 1) + ". " + esc(qq) + "</div>";
+      if (compare) {
+        var mine = d.answers[i] && d.answers[i].agree, theirs = partner[i] && partner[i].agree;
+        html += '<div class="p-a"><b>Agreement:</b> ' + esc(mine || "—") + (theirs ? " / " + esc(theirs) : "") + "</div>";
+        var noticed = (d.comparisons[i] || "").trim();
+        html += '<div class="p-a' + (noticed ? "" : " empty") + '"><b>What we noticed:</b> ' + (noticed ? esc(noticed) : "—") + "</div>";
+      }
+      if (!mentor) html += '<div class="p-a' + (t ? "" : " empty") + '">' + (t ? esc(t) : "—") + "</div>";
+      return html + "</div>";
+    }).join("");
+    if (mentor) qa = '<p class="p-a" style="margin-bottom:12pt;color:#444">Mentor copy — the couple’s private answers are not included. Only the agreement dials and the shared “what we noticed” notes print here.</p>' + qa;
     var others = d.othersCommitments.filter(function (r) { return (r.who && r.who.trim()) || (r.what && r.what.trim()); }).map(function (r) { return "<tr><td><b>" + esc(r.who) + "</b></td><td>" + esc(r.what) + "</td></tr>"; }).join("");
     var html = '<div class="print-page p-cover"><div class="p-kicker">' + esc(g.title) + " · Session " + s.n + "</div><h1>" + esc(s.title) + "</h1>" +
       '<div class="p-meta">' + (d.name ? esc(d.name) + "<br/>" : "") + esc(prettyDate(d.date) || "") + '</div><div class="p-meta" style="font-family:var(--serif);font-style:italic;margin-top:1.4rem;font-size:13pt">' + esc(s.premise) + "</div></div>";

@@ -215,25 +215,25 @@
       {
         "vn": 1,
         "start": 0,
-        "end": 118
+        "end": 52
       },
       {
         "vn": 2,
-        "start": 119,
-        "end": 184
+        "start": 53,
+        "end": 118
       },
       {
         "vn": 3,
-        "start": 185,
-        "end": 294
+        "start": 119,
+        "end": 228
       },
       {
         "vn": 4,
-        "start": 295,
-        "end": 433
+        "start": 229,
+        "end": 367
       }
     ],
-    "plain": "A psalm of David, regarding his experience in the cave. A prayer.\nI cry out to the Lord;\nI plead for the Lord’s mercy. I pour out my complaints before him\nand tell him all my troubles. When I am overwhelmed,\nyou alone know the way I should turn.\nWherever I go,\nmy enemies have set traps for me. I look for someone to come and help me,\nbut no one gives me a passing thought!\nNo one will help me;\nno one cares a bit what happens to me."
+    "plain": "I cry out to the Lord;\nI plead for the Lord’s mercy. I pour out my complaints before him\nand tell him all my troubles. When I am overwhelmed,\nyou alone know the way I should turn.\nWherever I go,\nmy enemies have set traps for me. I look for someone to come and help me,\nbut no one gives me a passing thought!\nNo one will help me;\nno one cares a bit what happens to me."
   },
   "blended-s10-genesis-37-3-4": {
     "ref": "Genesis 37:3-4",

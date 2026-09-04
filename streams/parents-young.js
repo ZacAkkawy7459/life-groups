@@ -47,15 +47,15 @@
       {
         "vn": 1,
         "start": 0,
-        "end": 207
+        "end": 143
       },
       {
         "vn": 2,
-        "start": 208,
-        "end": 358
+        "start": 144,
+        "end": 294
       }
     ],
-    "plain": "A song for pilgrims ascending to Jerusalem. A psalm of Solomon.\nUnless the Lord builds a house,\nthe work of the builders is wasted.\nUnless the Lord protects a city,\nguarding it with sentries will do no good. It is useless for you to work so hard\nfrom early morning until late at night,\nanxiously working for food to eat;\nfor God gives rest to his loved ones."
+    "plain": "Unless the Lord builds a house,\nthe work of the builders is wasted.\nUnless the Lord protects a city,\nguarding it with sentries will do no good. It is useless for you to work so hard\nfrom early morning until late at night,\nanxiously working for food to eat;\nfor God gives rest to his loved ones."
   },
   "parents-young-s2-matthew-11-28-30": {
     "ref": "Matthew 11:28-30",
